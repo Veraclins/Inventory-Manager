@@ -1,4 +1,4 @@
-import { z, ZodError } from 'zod';
+import { z, ZodError, ZodFormattedError } from 'zod';
 
 export function formatZodError(error: ZodError) {
   if (!error || typeof error.format !== 'function') {
@@ -12,27 +12,25 @@ export function formatZodError(error: ZodError) {
 }
 
 export function recursiveFormatZodErrors<S extends z.ZodType<any, any>>(
-  errors: any
+  errors: ZodFormattedError<S>
 ) {
   let formattedErrors: Record<string, any> = {};
 
-  for (const key in errors) {
-    if (key === '_errors') {
-      continue;
-    }
-
-    if (errors[key]?._errors?.[0]) {
-      if (!isNaN(key as any) && !Array.isArray(formattedErrors)) {
-        formattedErrors = [];
+  Object.entries(errors).forEach(([key, value]) => {
+    if (key !== '_errors') {
+      if (value?._errors?.[0]) {
+        if (!isNaN(key as any) && !Array.isArray(formattedErrors)) {
+          formattedErrors = [];
+        }
+        formattedErrors[key] = value._errors[0];
+      } else {
+        if (!isNaN(key as any) && !Array.isArray(formattedErrors)) {
+          formattedErrors = [];
+        }
+        formattedErrors[key] = recursiveFormatZodErrors(value);
       }
-      formattedErrors[key] = errors[key]._errors[0];
-    } else {
-      if (!isNaN(key as any) && !Array.isArray(formattedErrors)) {
-        formattedErrors = [];
-      }
-      formattedErrors[key] = recursiveFormatZodErrors(errors[key]);
     }
-  }
+  });
 
   return { errors: formattedErrors };
 }
@@ -46,7 +44,7 @@ const validateZodSchemaAsync =
       return { values: val };
     } catch (error: any) {
       return error.format
-        ? formatZodError(error)
+        ? formatZodError(error as ZodError)
         : { errors: error.toString() };
     }
   };
@@ -57,7 +55,7 @@ export type ValidateReturnType<S extends z.ZodType<any, any>> =
       errors?: undefined;
     }
   | {
-      errors: any;
+      errors: Partial<z.TypeOf<S>>;
       values?: undefined;
     };
 

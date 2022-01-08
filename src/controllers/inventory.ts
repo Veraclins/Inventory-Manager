@@ -1,38 +1,40 @@
-import { RequestHandler } from 'express';
-import db, { PrismaPromise } from '../db';
-import { validateZodSchema } from '../helpers/validations';
-import {
-  AddItemLot,
-  CreateItem,
-  SellItem,
-} from '../helpers/validations/inventory';
+import { Request, Response } from 'express';
+import db, { PrismaPromise, Lot } from '../db';
+import { validateZodSchema } from '../validations';
+import { AddItemLot, CreateItem, SellItem } from '../validations/inventory';
+import { validateItem } from '../validations/item';
 
-export const createItem: RequestHandler = async (req, res, next) => {
-  const { name, description } = req.body;
+export const createItem = async (req: Request, res: Response) => {
+  const { name } = req.body;
 
-  const { errors } = await validateZodSchema(CreateItem, { name, description });
+  const { errors } = await validateZodSchema(CreateItem, { name });
   if (errors) {
     return res.status(400).json(errors);
   }
   const result = await db.item.create({
-    data: { name, description },
+    data: { name },
   });
-  res.json(result);
+  return res.json(result);
 };
 
-export const getItems: RequestHandler = async (req, res) => {
+export const getItems = async (_req: Request, res: Response) => {
   const result = await db.item.findMany();
-  res.json(result);
+  return res.json(result);
 };
 
-export const addItemLot: RequestHandler = async (req, res) => {
+export const addItemLot = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { expiry, quantity } = req.body;
+  const itemError = await validateItem(id);
+  if (itemError) {
+    return res.status(400).json({ message: itemError });
+  }
 
   const { errors, values } = await validateZodSchema(AddItemLot, {
     expiry,
     quantity,
   });
+
   if (!values) {
     return res.status(400).json(errors);
   }
@@ -48,11 +50,16 @@ export const addItemLot: RequestHandler = async (req, res) => {
     },
   });
 
-  res.json({});
+  return res.json({});
 };
 
-export const getItemQuantity: RequestHandler = async (req, res) => {
+export const getItemQuantity = async (req: Request, res: Response) => {
   const { id } = req.params;
+
+  const itemError = await validateItem(id);
+  if (itemError) {
+    return res.status(400).json({ message: itemError });
+  }
 
   const now = new Date();
   const lots = await db.lot.findMany({
@@ -65,6 +72,7 @@ export const getItemQuantity: RequestHandler = async (req, res) => {
     quantity: number;
     validTill: number | null;
   };
+
   if (!lots.length) {
     result = {
       quantity: 0,
@@ -84,12 +92,17 @@ export const getItemQuantity: RequestHandler = async (req, res) => {
     },
     { quantity: 0, validTill: new Date(lots[0].validTill).getTime() }
   );
-  res.json(result);
+  return res.json(result);
 };
 
-export const sellItems: RequestHandler = async (req, res) => {
+export const sellItems = async (req: Request, res: Response) => {
   const { id } = req.params;
   let { quantity } = req.body;
+
+  const itemError = await validateItem(id);
+  if (itemError) {
+    return res.status(400).json({ message: itemError });
+  }
 
   const { errors } = await validateZodSchema(SellItem, { quantity });
   if (errors) {
@@ -117,20 +130,19 @@ export const sellItems: RequestHandler = async (req, res) => {
 
   if (quantity > totalQuantity) {
     return res.status(400).json({
-      message: `Not enough items available for sale. Only ${totalQuantity} ${
-        totalQuantity > 1 ? 'items' : 'item'
-      } left`,
+      message: `Not enough items available for sale. Only ${totalQuantity} item(s) left`,
     });
   }
-  const queries: PrismaPromise<any>[] = [];
+  const queries: PrismaPromise<Lot>[] = [];
 
   for (const lot of lots) {
     const available = lot.quantity;
     const lotQuantityToSell = Math.min(quantity, available);
+
     queries.push(
       db.lot.update({
         where: { id: lot.id },
-        data: { quantity: available - lotQuantityToSell },
+        data: { quantity: { decrement: lotQuantityToSell } },
       })
     );
     quantity = quantity - lotQuantityToSell;
@@ -138,5 +150,15 @@ export const sellItems: RequestHandler = async (req, res) => {
   }
   await db.$transaction(queries);
 
-  res.json({});
+  return res.json({});
+};
+
+export const cleanup = async () => {
+  const now = new Date();
+  const [count] = await Promise.all([
+    db.lot.count({ where: { validTill: { lt: now } } }),
+    db.lot.deleteMany({ where: { validTill: { lt: now } } }),
+  ]);
+  // eslint-disable-next-line no-console
+  console.log('Deleted %d expired inventories', count);
 };

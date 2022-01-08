@@ -1,7 +1,7 @@
-import { Request, Response, NextFunction, ErrorRequestHandler } from 'express';
+import { Request, Response, NextFunction } from 'express';
 
 export const tryCatch =
-  (handler: (req: Request, res: Response<any>, next: NextFunction) => any) =>
+  (handler: (req: Request, res: Response, next: NextFunction) => void) =>
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await handler(req, res, next);
@@ -9,7 +9,7 @@ export const tryCatch =
       console.error(error);
       if (error.code === 'P2025') {
         error.status = 404;
-        error.message = 'No inventory item with the giving ID found';
+        error.message = 'No inventory item with the given ID found';
         return next(error);
       }
       if (error.message) {
