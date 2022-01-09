@@ -1,24 +1,30 @@
 import express, { NextFunction, Request, Response } from 'express';
 import cron from 'node-cron';
+import cors from 'cors';
 import { cleanup } from './controllers/inventory';
 import routes from './routes';
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(routes);
 
-app.get('*', async (_req, res) => {
+app.get('*', async (req, res) => {
+  const host = req.get('host');
+  const protocol = req['protocol'];
+  const origin = `${protocol}://${host}`;
   res.json({
-    message: 'Welcome to inventory manager',
+    message:
+      'Welcome to inventory manager. There is nothing here! Please see available endpoints below',
     availableRoutes: [
-      `get: '/'`,
-      `post: '/'`,
-      `post: '/:id/add'`,
-      `get: '/:id/quantity'`,
-      `post: '/:id/sell'`,
+      `get: '${origin}/'`,
+      `post: '${origin}/'`,
+      `post: '${origin}/:id/add'`,
+      `get: '${origin}/:id/quantity'`,
+      `post: '${origin}/:id/sell'`,
     ],
   });
 });

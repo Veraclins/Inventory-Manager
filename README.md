@@ -65,3 +65,7 @@ You can access the REST API of the server using the following endpoints:
 - `/:id/sell`: Sell a quantity of the item
   - Body:
     - `quantity: Number` (required): The quantity of items to be sold
+
+## Deployed API
+
+The API is publicly available [here](https://clinton-inventory.herokuapp.com/start)

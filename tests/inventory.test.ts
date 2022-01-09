@@ -1,4 +1,4 @@
-import db from '../src/db';
+import db, { Item } from '../src/db';
 import {
   addItemLot,
   getItemQuantity,
@@ -23,7 +23,10 @@ const mockResponse = () => {
 };
 
 const randomID = '7550a8ab-c496-4225-bae2-e0f85fd86742';
-
+let item: Item;
+beforeAll(async () => {
+  item = await db.item.create({ data: { name: 'Inventory 1' } });
+});
 afterAll(async () => {
   const deleteItems = db.item.deleteMany();
   const deleteLots = db.lot.deleteMany();
@@ -67,15 +70,13 @@ describe('Get inventory items handler', () => {
 
     const result = json.mock.calls[0][0];
 
-    expect(result.length).toEqual(1);
+    expect(result.length).toEqual(2);
   });
 });
 
 describe('Add item lot handler', () => {
   it('should add an item lot', async () => {
-    const item = await db.item.findFirst();
     const now = Date.now();
-
     const req = mockRequest(
       { expiry: now + 10000, quantity: 10 },
       { id: item?.id || '' }
@@ -89,9 +90,7 @@ describe('Add item lot handler', () => {
     expect(json).toHaveBeenCalledWith({});
   });
   it('should fail if Item ID is invalid', async () => {
-    const item = await db.item.findFirst();
     const now = Date.now();
-
     const req = mockRequest(
       { expiry: now + 10000, quantity: 10 },
       { id: (item?.id || '') + 'extra' }
@@ -108,7 +107,6 @@ describe('Add item lot handler', () => {
   });
   it('should fail if Item is not in the DB', async () => {
     const now = Date.now();
-
     const req = mockRequest(
       { expiry: now + 10000, quantity: 10 },
       { id: randomID }
@@ -124,9 +122,7 @@ describe('Add item lot handler', () => {
     });
   });
   it('should fail if quantity is not provided', async () => {
-    const item = await db.item.findFirst();
     const now = Date.now();
-
     const req = mockRequest(
       { expiry: now + 10000 },
       { id: item?.id || '' }
@@ -142,7 +138,6 @@ describe('Add item lot handler', () => {
     });
   });
   it('should fail if quantity is not a number', async () => {
-    const item = await db.item.findFirst();
     const now = Date.now();
 
     const req = mockRequest(
@@ -160,7 +155,6 @@ describe('Add item lot handler', () => {
     });
   });
   it('should fail if quantity is not a positive number', async () => {
-    const item = await db.item.findFirst();
     const now = Date.now();
 
     const req = mockRequest(
@@ -178,7 +172,6 @@ describe('Add item lot handler', () => {
     });
   });
   it('should fail if expiry time is not provided', async () => {
-    const item = await db.item.findFirst();
     const req = mockRequest(
       { quantity: 100 },
       { id: item?.id || '' }
@@ -194,8 +187,6 @@ describe('Add item lot handler', () => {
     });
   });
   it('should fail if expiry time is not a number', async () => {
-    const item = await db.item.findFirst();
-
     const req = mockRequest(
       { expiry: 'string', quantity: 20 },
       { id: item?.id || '' }
@@ -211,7 +202,6 @@ describe('Add item lot handler', () => {
     });
   });
   it('should fail if expiry time is not in the future', async () => {
-    const item = await db.item.findFirst();
     const now = Date.now();
 
     const req = mockRequest(
@@ -230,11 +220,11 @@ describe('Add item lot handler', () => {
   });
 });
 describe('Get Item Quantity handler', () => {
-  it('should return all unexpired items quantity and earliest expiry time', async () => {
-    const item = await db.item.findFirst();
+  beforeEach(async () => {
     await db.lot.deleteMany({ where: { itemId: item?.id } });
+  });
+  it('should return all unexpired items quantity and earliest expiry time', async () => {
     const now = Date.now();
-
     const expiry = now + 10000;
     const expiry2 = now + 20000;
     const expiry3 = now + 5000;
@@ -269,8 +259,6 @@ describe('Get Item Quantity handler', () => {
     expect(result.validTill).toEqual(expiry3);
   });
   it('should not return expired items quantity or expiry time', async () => {
-    const item = await db.item.findFirst();
-    await db.lot.deleteMany({ where: { itemId: item?.id } });
     const now = Date.now();
 
     const expiry = now + 500;
@@ -307,8 +295,6 @@ describe('Get Item Quantity handler', () => {
     expect(result.validTill).toEqual(expiry2);
   });
   it('should return quantity 0 and expiry time null when no valid input found', async () => {
-    const item = await db.item.findFirst();
-    await db.lot.deleteMany({ where: { itemId: item?.id } });
     const now = Date.now();
 
     const expiry = now + 500;
@@ -352,7 +338,6 @@ describe('Get Item Quantity handler', () => {
 });
 describe('Sell Items handler', () => {
   it('should sell a given quantity and adjust the DB record', async () => {
-    const item = await db.item.findFirst();
     await db.lot.deleteMany({ where: { itemId: item?.id } });
     const now = Date.now();
 
@@ -396,7 +381,6 @@ describe('Sell Items handler', () => {
     expect(result.validTill).toEqual(expiry2);
   });
   it('should fail if there is not enough quantity available', async () => {
-    const item = await db.item.findFirst();
     await db.lot.deleteMany({ where: { itemId: item?.id } });
     const now = Date.now();
 
@@ -435,7 +419,6 @@ describe('Sell Items handler', () => {
       message: 'Not enough items available for sale. Only 60 item(s) left',
     });
   });
-
   it('should fail if Item is not in the DB', async () => {
     const req = mockRequest({ quantity: 10 }, { id: randomID }) as Request;
     const res = mockResponse() as Response;
@@ -449,8 +432,6 @@ describe('Sell Items handler', () => {
     });
   });
   it('should fail if quantity is not provided', async () => {
-    const item = await db.item.findFirst();
-
     const req = mockRequest({}, { id: item?.id || '' }) as Request;
     const res = mockResponse() as Response;
     const status = jest.spyOn(res, 'status');
@@ -463,8 +444,6 @@ describe('Sell Items handler', () => {
     });
   });
   it('should fail if quantity is not a number', async () => {
-    const item = await db.item.findFirst();
-
     const req = mockRequest(
       { quantity: 'love' },
       { id: item?.id || '' }
@@ -480,8 +459,6 @@ describe('Sell Items handler', () => {
     });
   });
   it('should fail if quantity is not a positive number', async () => {
-    const item = await db.item.findFirst();
-
     const req = mockRequest(
       { quantity: -10 },
       { id: item?.id || '' }
@@ -499,7 +476,6 @@ describe('Sell Items handler', () => {
 });
 describe('Data Cleanup', () => {
   it('should delete expired items from the database', async () => {
-    const item = await db.item.findFirst();
     await db.lot.deleteMany({ where: { itemId: item?.id } });
     const now = Date.now();
 
