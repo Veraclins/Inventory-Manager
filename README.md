@@ -8,28 +8,40 @@ This is an [Express](https://expressjs.com/) REST API built on a [PostgreSql](ht
 
 Clone the repository:
 
-```
+```bash
 git clone git@github.com:Veraclins/Inventory-Manager.git
 ```
 
 Install dependencies:
 
-```
+```bash
 cd Inventory-Manager
 yarn
 ```
 
 ### 2. Create and setup the database
 
+Create a .env file by copying the provided .env.example file
+
+``` bash
+cp .env.example .env
+```
+
+Update `DATABASE_URL` replacing `<computer username here>` with your computer username (your can run the command below on your command line to get your username)
+
+```bash
+whoami
+```
+
 Run the following command to create your postgres database. This also creates the `Item` and `Lot` tables that are defined in [`prisma/schema.prisma`](./prisma/schema.prisma):
 
-```
+```bash
 yarn migrate:dev
 ```
 
 ### 3. Start the REST API server
 
-```
+```bash
 yarn dev
 ```
 
