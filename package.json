@@ -19,7 +19,7 @@
     "cors": "^2.8.5",
     "dotenv-cli": "^4.1.1",
     "express": "4.17.2",
-    "node-cron": "^3.0.0",
+    "node-cron": "^3.0.2",
     "zod": "^3.11.6"
   },
   "devDependencies": {
